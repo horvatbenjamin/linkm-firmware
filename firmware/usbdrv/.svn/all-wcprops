@@ -1,0 +1,131 @@
+K 25
+svn:wc:ra_dav:version-url
+V 37
+/svn/!svn/ver/2/trunk/firmware/usbdrv
+END
+usbdrvasm20.inc
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/2/trunk/firmware/usbdrv/usbdrvasm20.inc
+END
+usbdrvasm12.inc
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/2/trunk/firmware/usbdrv/usbdrvasm12.inc
+END
+usbdrvasm15.inc
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/2/trunk/firmware/usbdrv/usbdrvasm15.inc
+END
+usbdrvasm16.inc
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/2/trunk/firmware/usbdrv/usbdrvasm16.inc
+END
+usbdrvasm.asm
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/!svn/ver/2/trunk/firmware/usbdrv/usbdrvasm.asm
+END
+usbdrv.c
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/!svn/ver/2/trunk/firmware/usbdrv/usbdrv.c
+END
+oddebug.c
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/2/trunk/firmware/usbdrv/oddebug.c
+END
+usbdrv.h
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/!svn/ver/2/trunk/firmware/usbdrv/usbdrv.h
+END
+usbdrvasm18-crc.inc
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/2/trunk/firmware/usbdrv/usbdrvasm18-crc.inc
+END
+CommercialLicense.txt
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/!svn/ver/2/trunk/firmware/usbdrv/CommercialLicense.txt
+END
+oddebug.h
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/2/trunk/firmware/usbdrv/oddebug.h
+END
+License.txt
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/2/trunk/firmware/usbdrv/License.txt
+END
+asmcommon.inc
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/!svn/ver/2/trunk/firmware/usbdrv/asmcommon.inc
+END
+usbportability.h
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/!svn/ver/2/trunk/firmware/usbdrv/usbportability.h
+END
+USBID-License.txt
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/!svn/ver/2/trunk/firmware/usbdrv/USBID-License.txt
+END
+Changelog.txt
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/!svn/ver/2/trunk/firmware/usbdrv/Changelog.txt
+END
+usbdrvasm.S
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/2/trunk/firmware/usbdrv/usbdrvasm.S
+END
+usbconfig-prototype.h
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/!svn/ver/2/trunk/firmware/usbdrv/usbconfig-prototype.h
+END
+usbdrvasm128.inc
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/!svn/ver/2/trunk/firmware/usbdrv/usbdrvasm128.inc
+END
+usbdrvasm165.inc
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/!svn/ver/2/trunk/firmware/usbdrv/usbdrvasm165.inc
+END
+Readme.txt
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/!svn/ver/2/trunk/firmware/usbdrv/Readme.txt
+END

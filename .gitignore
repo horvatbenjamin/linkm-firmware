@@ -1,0 +1,8 @@
+*.swp
+*.o
+*/.swp
+*/.o
+.svn
+.svn/*
+*/.svn
+*/.svn/*

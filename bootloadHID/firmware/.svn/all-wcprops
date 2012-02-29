@@ -1,0 +1,29 @@
+K 25
+svn:wc:ra_dav:version-url
+V 44
+/svn/!svn/ver/216/trunk/bootloadHID/firmware
+END
+main.c
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/34/trunk/bootloadHID/firmware/main.c
+END
+usbconfig.h
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/!svn/ver/53/trunk/bootloadHID/firmware/usbconfig.h
+END
+bootloaderconfig.h
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/51/trunk/bootloadHID/firmware/bootloaderconfig.h
+END
+Makefile
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/216/trunk/bootloadHID/firmware/Makefile
+END
