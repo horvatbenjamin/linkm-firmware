@@ -1,50 +1,3 @@
-/*
- * LinkM firmware - USB HID to I2C adapter for BlinkM
- *
- * Command format:  (from host perspective)
- *
- * pos description
- *  0    <startbyte>      ==  0xDA
- *  1    <linkmcmdbyte>   ==  0x01 = i2c transaction, 0x02 = i2c bus scan, etc. 
- *  2    <num_bytes_send> ==  starting at byte 4
- *  3    <num_bytes_recv> ==  may be zero if nothing to send back
- *  4..N <cmdargs>        == command 
- *
- * For most common command, i2c transaction (0x01):
- * pos  description
- *  0   0xDA
- *  1   0x01
- *  2   <num_bytes_to_send>
- *  3   <num_bytes_to_receive>
- *  4   <i2c_addr>   ==  0x00-0x7f
- *  5   <send_byte_0>
- *  6   <send_byte_1>
- *  7   ...
- *
- * Command byte values
- *  0x00 = no command, do not use
- *  0x01 = i2c transact: read + opt. write (N arguments)
- *  0x02 = i2c read                        (N arguments)
- *  0x03 = i2c write                       (N arguments)
- *  0x04 = i2c bus scan                    (2 arguments, start addr, end addr)
- *  0x05 = i2c bus connect/disconnect      (1 argument, connect/disconect)
- *  0x06 = i2c init                        (0 arguments)
- *
- *  0x100 = set status LED                  (1 argument)
- *  0x101 = get status LED
- * 
- * Response / Output buffer format:
- * pos description
- *  0   transaction counter (8-bit, wraps around)
- *  1   response code (0 = okay, other = error)
- *  2   <resp_byte_0>
- *  3   <resp_byte_1>
- *  4   ...
- *
- * 2009, Tod E. Kurt, ThingM, http://thingm.com/
- *
- */
-
 #include <avr/io.h>
 #include <avr/wdt.h>        // watchdog
 #include <avr/eeprom.h>     //
@@ -52,20 +5,12 @@
 #include <util/delay.h>     // for _delay_ms() 
 #include <string.h>
 
-#include <avr/eeprom.h>
 #include <avr/pgmspace.h>   // required by usbdrv.h 
 #include "usbdrv.h"
 // #include "oddebug.h"        // This is also an example for using debug macros 
 
 #include "i2cmaster.h"
 // #include "uart.h"
-
-#include "linkm-lib.h"
-
-// uncomment to enable debugging to serial port
-#define DEBUG   1
-
-#define ENABLE_PLAYTICKER 1
 
 // these aren't used anywhere, just here to note them
 #define PIN_LED_STATUS         PORTB4
@@ -80,21 +25,17 @@
 #define LINKM_VERSION_MAJOR    0x13
 #define LINKM_VERSION_MINOR    0x36   // not quite leet yet
 
-// #if DEUBG > 0
-// #define printdebug(str)
-// #define putchdebug(c)
-// #else
-// #define printdebug(str) fputs(str,stdout)
-// #define putchdebug(c)   uart_putchar(c,stdout)
-// #endif
+#define I2C_ADXL345 83
+#define I2C_HMC5843 30
+#define I2C_PSITG3200 104
 
 /* ------------------------------------------------------------------------- */
 /* ----------------------------- USB interface ----------------------------- */
 /* ------------------------------------------------------------------------- */
 
-#define REPORT1_COUNT 16
-#define REPORT2_COUNT 131
-
+// #define REPORT1_COUNT 16
+// #define REPORT2_COUNT 131
+/*
 PROGMEM char usbHidReportDescriptor[33] = {
     0x06, 0x00, 0xff,              // USAGE_PAGE (Generic Desktop)
     0x09, 0x01,                    // USAGE (Vendor Usage 1)
@@ -114,6 +55,7 @@ PROGMEM char usbHidReportDescriptor[33] = {
     0xb2, 0x02, 0x01,              //   FEATURE (Data,Var,Abs,Buf)
     0xc0                           // END_COLLECTION
 };
+*/
 
 /* Since we define only one feature report, we don't use report-IDs (which
  * would be the first byte of the report). The entire report consists of
@@ -121,68 +63,23 @@ PROGMEM char usbHidReportDescriptor[33] = {
  */
 
 /* The following variables store the status of the current data transfer */
-static uchar    currentAddress;
+/*static uchar    currentAddress;
 static uchar    bytesRemaining;
-
+*/
 //static int numWrites;  // FIXME: what was this for?
 
-static uint8_t inmsgbuf[REPORT1_COUNT];
-static uint8_t outmsgbuf[REPORT1_COUNT];
-static uint8_t reportId;  // which report Id we're currently working on
+//static uint8_t inmsgbuf[REPORT1_COUNT];
+static uint8_t outmsgbuf[19];
+// static uint8_t reportId;  // which report Id we're currently working on
 
 //static volatile uint16_t tick;         // tick tock clock
 //static volatile uint16_t timertick;         // tick tock clock
 
 static uint8_t goReset = 0;   // set to 1 to reset 
-/*
-
-#if DEBUG > 0
-#warning "DEBUG is enabled!"
-#warning "DEBUG is enabled!"
-#warning "DEBUG is enabled!"
-// setup serial routines to become stdio
-extern int uart_putchar(char c, FILE *stream);
-extern int uart_getchar(FILE *stream);
-FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, uart_getchar, _FDEV_SETUP_RW);
-#endif
-*/
-/*
-typedef struct _params_t {
-    uint8_t  playing;      // turn on or off playing
-    uint8_t  script_id;    // script id to play
-    uint8_t  script_tick;  // number of ticks between script lines
-    uint8_t  script_len;   // number of script lines in script
-    uint8_t  start_pos;    // start position in the script  FIXME: not impl yet
-    uint8_t  fadespeed;    //
-    uint8_t  dir;          // play direction FIXME: not impl yet
-} params_t;
-
-params_t params;           // local RAM copy of playTicker params
-uint16_t script_pos;       // position for playTicker
-*/
 
 // magic value read on reset: 0x55 = run bootloader , other = boot normally
 #define GOBOOTLOAD_MAGICVAL 0x55
 uint8_t bootmode EEMEM = 0; 
-/*
-params_t ee_params EEMEM = {
-    0,   // playing
-    0,   // script_id
-    0,   // script_tick
-    0,   // script_len
-    0,   // start_pos
-    100, // fadespeed
-    0,   // dir
-};
-*/
-//params_t ee_params EEMEM = {
-//    1,5,5,2, 0,100,0
-//};
-
-//int blinkmStop(uint8_t addr );
-//int blinkmSetRGB(uint8_t addr, uint8_t r, uint8_t g, uint8_t b );
-//int blinkmSetFadespeed(uint8_t addr, uint8_t fadespeed);
-//int blinkmPlayScript(uint8_t addr, uint8_t id, uint8_t reps, uint8_t pos);
 
 void(* softReset) (void) = 0;  //declare reset function @ address 0
 
@@ -219,6 +116,7 @@ void i2cEnable(int v) {
 // 
 // Called from usbFunctionWrite() when we've received the entire USB message
 // 
+/*
 void handleMessage(void)
 {
 //    statusLedSet(1);
@@ -239,12 +137,7 @@ void handleMessage(void)
     uint8_t cmd      = inmbufp[1];     // byte 1: command
     uint8_t num_sent = inmbufp[2];     // byte 2: number of bytes sent
     uint8_t num_recv = inmbufp[3];     // byte 3: number of bytes to return back
-/*
 
-#if DEBUG > 0
-    printf("\nc:%d s:%d r:%d ",cmd,num_sent,num_recv); // FIXME: fat
-#endif
-*/
     // i2c transaction
     // params:
     //   mpbufp[4] == i2c addr
@@ -307,69 +200,6 @@ void handleMessage(void)
 //        putchdebug('Z');
         i2c_stop();  // done!
     }
-    // i2c write
-    // params:
-    //   mbufp[4]     == i2c addr
-    //   mbufp[5]     == read after write boolean (1 == read, 0 = no read)
-    // returns:
-    //   outmsgbuf[0] == transaction counter 
-    //   outmsgbuf[1] == response code
-    // FIXME: this function doesn't work i think
-/*
-
-	else if( cmd == LINKM_CMD_I2CWRITE ) {
-        uint8_t addr      = inmbufp[4];  // byte 4: i2c addr or command
-        uint8_t doread    = inmbufp[5];  // byte 5: do read or not after this
-
-        if( addr >= 0x80 ) {   // invalid valid I2C address
-            outmsgbuf[1] = LINKM_ERR_BADARGS;
-            goto doneHandleMessage; //return;
-        }
-
-        if( i2c_start( (addr<<1) | I2C_WRITE ) == 1) {  // start i2c trans
-            outmsgbuf[1] = LINKM_ERR_I2C;
-            i2c_stop();
-            goto doneHandleMessage; //return;
-        }
-        // start succeeded, so send data
-        for( uint8_t i=0; i<num_sent-1; i++) {
-            i2c_write( inmbufp[5+i] );   // byte 5-N: i2c command to send
-        } 
-        if( !doread ) {
-            i2c_stop();   // done!
-        }
-    }
-    // i2c read
-    // params:
-    //   mpbuf[4]     == i2c addr 
-    // returns:
-    //   outmsgbuf[0] == transaction counter 
-    //   outmsgbuf[1] == response code
-    //   outmsgbuf[2] == i2c response byte 0  (if any)
-    //   outmsgbuf[3] == i2c response byte 1  (if any)
-    // ...
-    else if( cmd == LINKM_CMD_I2CREAD ) {
-        uint8_t addr      = inmbufp[4];  // byte 4: i2c addr 
-
-        if( num_recv == 0 ) {
-            outmsgbuf[1] = LINKM_ERR_BADARGS;
-            goto doneHandleMessage; //return;
-        }
-        statusLedSet(1);
-
-        if( i2c_rep_start( (addr<<1) | I2C_READ ) == 1 ) { // start i2c
-            outmsgbuf[1] = LINKM_ERR_I2CREAD;
-        }
-        else {
-            for( uint8_t i=0; i<num_recv; i++) {
-                uint8_t c = i2c_read( (i!=(num_recv-1)) ); // read from i2c
-                outmsgbuf[2+i] = c;             // store in response buff
-            }
-        }
-        statusLedSet(0);
-        i2c_stop();
-    }
-*/
     // i2c bus scan
     // params:
     //   mbufp[4]     == start addr
@@ -419,80 +249,7 @@ void handleMessage(void)
         _delay_ms(1);
         i2c_init();
     }
-    // set status led state
-    // params:
-    //   mbufp[4]  == on (1) or off (0)
-    // returns:
-    //   outmsgbuf[0] == transaction counter
-    //   outmsgbuf[1] == response code
-//    else if( cmd == LINKM_CMD_STATLEDSET ) {
-//        ledval = inmbufp[4];        // byte 4: on/off boolean
-//    }
-    // get status led state
-    // params:
-    //   none
-    // returns:
-    //   outmsgbuf[0] == transaction counter
-    //   outmsgbuf[1] == response code
-    //   outmsgbuf[2] == state of status LED
-//    else if( cmd == LINKM_CMD_STATLEDGET ) {
-        // no arguments, just a single return byte
-//        outmsgbuf[2] = statusLedGet();
-//    }
-    // set play statemachine params
-    // params:
-    //   mbufp[4] == playing on/off
-    //   mbufp[5] == script_id
-    //   mbufp[6] == ticks between steps
-    //   mbufp[7] == length of script   and so on
-    // returns:
-    //  none
-/*
-		else if( cmd == LINKM_CMD_PLAYSET ) { 
-        memcpy( &params, inmbufp+4, sizeof(params_t));
-        script_pos = params.start_pos;
-        if( params.fadespeed != 0 ) {
-            blinkmSetFadespeed(0, params.fadespeed);            
-        }
-    }
-*/
-    // get player statemachine params
-    // params:
-    //   none
-    // returns:
-    //   outmsgbuf[0] == transaction counter
-    //   outmsgbuf[1] == response code
-    //   outmsgbuf[2] == playing 
-    //   outmsgbuf[3] == script_id
-    //   outmsgbuf[4] == script_tick 
-    //   outmsgbuf[5] == script_len  nad so on
-/*
-	else if( cmd == LINKM_CMD_PLAYGET ) { 
-        memcpy( outmsgbuf+2, &params, sizeof(params_t));
-    }
-*/
-	// trigger LinkM to save current params to EEPROM
-    // params:
-    //   none
-    // returns:
-    //   none
-/*
-	else if( cmd == LINKM_CMD_EESAVE ) {
-        statusLedToggle();
-        eeprom_write_block( &params, &ee_params, sizeof(params_t) ); 
-    }
-*/
-    // trigger LinkM to load its saved EEPROM params into RAM
-    // params:
-    //   none
-    // returns:
-    //   none
-/*
-    else if( cmd == LINKM_CMD_EELOAD ) {
-        statusLedToggle();
-        eeprom_read_block( &params, &ee_params, sizeof(params_t) );
-    }
-*/
+
     // get linkm version
     // params:
     //   none
@@ -519,9 +276,12 @@ void handleMessage(void)
 
 }
 
+*/
+
 /* usbFunctionWrite() is called when the host sends a chunk of data to the
  * device. For more information see the documentation in usbdrv/usbdrv.h.
  */
+/*
 uchar   usbFunctionWrite(uchar *data, uchar len)
 {
     if(bytesRemaining == 0)
@@ -539,10 +299,12 @@ uchar   usbFunctionWrite(uchar *data, uchar len)
     
     return bytesRemaining == 0; // return 1 if this was the last chunk 
 }
+*/
 
 /* usbFunctionRead() is called when the host requests a chunk of data from
  * the device. For more information see the docs in usbdrv/usbdrv.h.
  */
+/*
 uchar   usbFunctionRead(uchar *data, uchar len)
 {
     if(len > bytesRemaining)
@@ -554,136 +316,99 @@ uchar   usbFunctionRead(uchar *data, uchar len)
     bytesRemaining -= len;
     return len;
 }
-
+*/
 // ------------------------------------------------------------------------- 
 /**
  *
  */
+
+unsigned char read_ADXL345(unsigned char* data_ptr){
+	 if( i2c_start( ( I2C_ADXL345<<1) | I2C_WRITE ) == 1) {
+		 i2c_stop();
+		 return 255;
+	 }else{
+		 i2c_write(0x32);
+		 //i2c_stop(); // megnezni, hogy a stop kiuriti-e a buffert!
+	 };
+	 if( i2c_rep_start( (I2C_ADXL345<<1) | I2C_READ ) == 1 ) { // start i2c
+		 return 255;
+	 }else{
+		 int x=0;
+		 for(x=0;x<6;++x){
+			data_ptr[x]=i2c_read(x!=5);
+		 };
+	 };
+	
+};
+
+void read_devices(){
+	unsigned char* data_ptr=outmsgbuf+1;
+	outmsgbuf[0]=0;
+	read_ADXL345(data_ptr);
+/*	data_ptr+=6;
+	read_HMC5843(data_ptr);
+	data_ptr+=6;
+	read_PSITG3200(data_ptr);
+*/
+};
+
+unsigned char init_i2c_sensors(){
+	//init ADXL345
+	 if( i2c_rep_start( ( I2C_ADXL345<<1) | I2C_WRITE ) == 1) {
+		 i2c_stop();
+		 return 1;
+	 }else{
+		 i2c_write(0x2D);
+		 i2c_write(0x08);
+		 i2c_stop(); // megnezni, hogy a stop kiuriti-e a buffert!
+	 };
+	//init HMC5843
+	 if( i2c_rep_start( ( I2C_HMC5843<<1) | I2C_WRITE ) == 1) {
+		 i2c_stop();
+		 return 2;
+	 }else{
+		 i2c_write(0x0);
+		 i2c_write(0b00011000);		// Set to maximum rate
+		 i2c_stop(); // megnezni, hogy a stop kiuriti-e a buffert!
+	 };
+	 if( i2c_rep_start( ( I2C_HMC5843<<1) | I2C_WRITE ) == 1) {
+		 i2c_stop();
+		 return 4;
+	 }else{
+		 i2c_write(0x02);
+		 i2c_write(0x00);		// Enable measurement
+		 i2c_stop(); // megnezni, hogy a stop kiuriti-e a buffert!
+	 };
+	//init PS-ITG-3200
+	 if( i2c_rep_start( ( I2C_PSITG3200<<1) | I2C_WRITE ) == 1) {
+		 i2c_stop();
+		 return 8;
+	 }else{
+		 i2c_write(0x16);
+		 i2c_write(0b00011000);		// Enable measurement
+		 i2c_stop(); // megnezni, hogy a stop kiuriti-e a buffert!
+	 };
+	 return 0;
+};
+
 usbMsgLen_t usbFunctionSetup(uchar data[8])
 {
-    usbRequest_t    *rq = (void *)data;
-    // HID class request 
-    if((rq->bmRequestType & USBRQ_TYPE_MASK) == USBRQ_TYPE_CLASS) {
-        // wValue: ReportType (highbyte), ReportID (lowbyte) 
-        uint8_t rid = rq->wValue.bytes[0];  // report Id
-        if(rq->bRequest == USBRQ_HID_GET_REPORT) {  
-            if( rid == 1 || rid == 2 ) { 
-                reportId = rid;
-                bytesRemaining = (rid==1) ? REPORT1_COUNT : REPORT2_COUNT;
-                currentAddress = 0;
-                return USB_NO_MSG;  // use usbFunctionRead() to obtain data 
-            }
-        }
-        else if(rq->bRequest == USBRQ_HID_SET_REPORT) {
-            if( rid == 1 || rid == 2 ) { 
-                reportId = rid;
-                bytesRemaining = (rid==1) ? REPORT1_COUNT : REPORT2_COUNT;
-                currentAddress = 0;
-                return USB_NO_MSG;  // use usbFunctionRead() to obtain data 
-            }
-        }
-    } else {
-        // ignore vendor type requests, we don't use any 
-    }
-    return 0;
+	usbRequest_t    *rq = (void *)data;
+	if(rq->bRequest==1){
+		//initialize I2C sensors
+		outmsgbuf[0]=init_i2c_sensors();
+		usbMsgPtr=outmsgbuf;
+		return 1;
+	};
+	if(rq->bRequest==2){
+		read_devices();
+		usbMsgPtr=outmsgbuf;
+		return 19;
+	}
+	return 0;
+
 }
 
-// -------------------------------------------------------------------------
-
-// 
-/*
-int blinkmStop(uint8_t addr ) 
-{
-    if( i2c_start( (addr<<1) | I2C_WRITE ) == 1) {  // start i2c transaction
-        i2c_stop();
-        return 1;
-    }
-    i2c_write( 'o' );
-    i2c_stop();   // done!
-    return 0;
-}
-
-//
-int blinkmSetRGB(uint8_t addr, uint8_t r, uint8_t g, uint8_t b )
-{
-    if( i2c_start( (addr<<1) | I2C_WRITE ) == 1) {  // start i2c transaction
-        i2c_stop();
-        return 1;
-    }
-    i2c_write( 'n' );  // turn off now
-    i2c_write( r );
-    i2c_write( g );
-    i2c_write( b );
-    i2c_stop();   // done!
-    return 0;
-}
-
-//
-int blinkmSetFadespeed(uint8_t addr, uint8_t fadespeed)
-{
-    if( i2c_start( (addr<<1) | I2C_WRITE ) == 1) {  // start i2c transaction
-        i2c_stop();
-        return 1;
-    }
-    i2c_write( 'f' );
-    i2c_write( fadespeed );
-    i2c_stop();   // done!
-    return 0;
-}
-
-//
-// Send I2C play script command to blinkm
-// returns zero on success, non-zero on fail
-//
-int blinkmPlayScript(uint8_t addr, uint8_t id, uint8_t reps, uint8_t pos)
-{
-    if( i2c_start( (addr<<1) | I2C_WRITE ) == 1) {  // start i2c transaction
-        i2c_stop();
-        return 1;
-    }
-    i2c_write( 'p' );
-    i2c_write( id );  
-    i2c_write( reps );
-    i2c_write( pos );
-    i2c_stop();   // done!
-    return 0;
-}
-*/
-//
-// Stand-alone play state machine
-// Drives BlinkMs to play back their scripts in sync
-//
-/*
-void playTicker(void)
-{
-    if( !params.playing ) return;
-    if( tick >= params.script_tick ) {
-        //printf("tick!");
-        tick = 0;
-        blinkmPlayScript( 0, params.script_id, 0, script_pos );
-        statusLedToggle();
-        script_pos++;
-        if( script_pos == params.script_len ) {  // loop
-            script_pos = 0;
-        }
-    }
-}
-*/
-
-//
-// called periodically as a timer
-// should update 'tick' at 30.517 Hz
-//
-/*
-ISR(TIMER1_OVF_vect)
-{
-    timertick++; 
-    if( timertick == 6 ) {
-        timertick = 0;
-        tick++;
-    }
-}
-*/
 // ------------------------------------------------------------------------- 
 
 int main(void)
@@ -716,20 +441,6 @@ int main(void)
         }
     }
 
-    // load params from EEPROM
-//    eeprom_read_block( &params, &ee_params, sizeof(params_t) );
-//    blinkmStop( 0 );         // stop all scripts  FIXME:maybe make this a param?
-//    blinkmSetRGB(0, 0,0,0 ); // turn all off
-//    if( params.fadespeed != 0 ) {
-//        blinkmSetFadespeed(0, params.fadespeed);            
-//    }
-/*
-#if DEBUG > 0
-    uart_init();                // initialize UART hardware
-    stdout = stdin = &uart_str; // setup stdio = RS232 port
-    puts("linkm debug mode");
-#endif
-*/
     usbInit();
     usbDeviceDisconnect();  
     for( i=0; i<2; i++ ) {
@@ -738,39 +449,12 @@ int main(void)
         statusLedSet( 0 );      // turn off LED to start
         _delay_ms(50);
     }
-    // enforce re-enumeration, do this while interrupts are disabled!
-    //i = 0;
-    //while(--i) {             // fake USB disconnect for > 250 ms 
-    //    wdt_reset();
-    //    _delay_ms(1);
-    //}
     usbDeviceConnect();
-//
-//#if ENABLE_PLAYTICKER == 1
-    // set up periodic timer for state machine
-//    TCCR1B |= _BV( CS10 );         // 12e6/1/65536 == 183.1  then, / 6 = 30.517
-//    TIFR1  |= _BV( TOV1 );         // clear interrupt flag
-//    TIMSK1 |= _BV( TOIE1 );        // enable overflow interrupt
-//#endif
-
     sei();
     
     for(;;) {  // main event loop 
         wdt_reset();
         usbPoll();
-/*
-#if ENABLE_PLAYTICKER == 1
-        playTicker();
-#endif
-*/
-/*		
-        if( goReset ) {
-            for( i=0; i<200;i++ ) {  // spin on the USB til watchdog triggers
-                usbPoll();
-                _delay_ms(10);
-            }
-        }
-*/
     }
 
     // this is never executed
