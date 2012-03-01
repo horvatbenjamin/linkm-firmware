@@ -92,7 +92,7 @@
 /* ----------------------------- USB interface ----------------------------- */
 /* ------------------------------------------------------------------------- */
 
-#define REPORT1_COUNT 16
+#define REPORT1_COUNT 8
 #define REPORT2_COUNT 131
 
 PROGMEM char usbHidReportDescriptor[33] = {
