@@ -27,7 +27,7 @@
 
 // was 6000000ul for straight nop loop
 #ifndef I2C_USTIMEOUT
-#define I2C_USTIMEOUT     100
+#define I2C_USTIMEOUT     10000
 #endif
 
 /*************************************************************************
