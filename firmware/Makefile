@@ -59,7 +59,7 @@ OBJECTS = twimaster.c
 OBJECTS += usbdrv/usbdrv.o usbdrv/usbdrvasm.o
 OBJECTS += $(TARGET).o 
 
-COMPILE = avr-gcc -std=gnu99 -Wall -O3 -DF_CPU=$(F_CPU) $(CFLAGS) -mmcu=$(MCU)
+COMPILE = avr-gcc -std=gnu99 -Wall -Os -DF_CPU=$(F_CPU) $(CFLAGS) -mmcu=$(MCU)
 
 ##############################################################################
 # Fuse values for particular devices
